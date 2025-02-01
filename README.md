@@ -1,66 +1,123 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+## Snappy PHP Code Task
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## Setup
+Standard Laravel Installation
 
-## About Laravel
+```bash
+composer install
+```
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+configure a standard .env with a mysql Database
+```dotenv
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=snappy
+DB_USERNAME=root
+DB_PASSWORD
+```
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+```php
+php artisan migrate
+```
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Console Command
+```php
+php artisan app:import-postcodes
+```
+This command could be scheduled to run overnight.
 
-## Learning Laravel
+### Design Considerations
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+The bulk of the logic is abstracted to a PostcodeService which is
+called from the command. This allows for reuse of the same code if required and better
+opportunities to test each part of the download, extract and populate process.
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+The package [Laravel Excel](https://docs.laravel-excel.com/3.1/getting-started/) has been used
+to ease the import process via the Imports/PostcodesImport class.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Performance
+The command sets the memory capacity to 512mb via an ini_set function this should
+be extracted to the php.ini file in a real production environment.
 
-## Laravel Sponsors
+The PostcodesImport class also allows for chunking and batch inserts to keep memory usage
+under control when dealing with larger files.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### Further Development
+More error handling for the file download and extraction process.
 
-### Premium Partners
+## Endpoints
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+### Add a shop
+```php
+POST /api/shop
+Payload:
+[
+    'name' => 'required',
+    'latitude' => 'required',
+    'longitude' => 'required',
+    'status' => 'required',
+    'type' => 'required',
+    'max_delivery_distance' => 'required',
+]
+```
 
-## Contributing
+Some basic validation ensures the required fields are passed to the endpoint. With more time
+I would further enhance this validation to include data types required and ensure duplication was
+protected against before the database for performance.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+This endpoint currently expects the frontend or the calling service to already know the
+latitude and longitude - a further enhancement would be to accept an address and geocode
+the coordinates using a geocoding api.
 
-## Code of Conduct
+### Get Nearest/Can Deliver Shops
+```PHP
+GET /api/nearest/{postcode}
+GET /api/deliver/{postcode}
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+The endpoints are expecting a well-formed postcode with a space between the outcode and incode,
+I would add some extra validation to ensure the postcode was in the expected format before
+processing.
 
-## Security Vulnerabilities
+Both endpoints have their own controller with an index method which utilises the abstracted ShopService
+to share logic between requests.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### Further Development
+With more time I would add model scopes to the model look-ups to reduce code duplication or preferably
+abstract all database interactions to a repository pattern. The benefit of the repository pattern include
+centralisation of database calls and enhanced testing via interfaces.
 
-## License
+## Testing
+I am using Pest and Feature tests for this project. Feature testing requires a valid mysql connection
+due to the geocoding distance functions used in MySQL.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Setup
+The test suite is already configured to use the applications mysql connection. A testing schema will need to be
+created prior to testing.
+
+## Running Tests
+
+To run the whole test suite.
+```PHP
+php artisan test
+```
+
+This includes an expensive external call to test the postcode download functionality.
+
+To run just the shop endpoints
+```PHP
+php artisan test --group=shop
+```
+
+## Further Improvements
+Rather than using Bounding Boxes in PHP you could use MySQL geospatial columns, indexes and 
+functions to run the same queries. In my limited research there is the opportunity for performance
+increase, but you could also add further index improvements to the current queries.
+
+## Security
+All endpoints are un protected in this project,  in a real project they would all be protected
+behind a login/auth flow and the post would use CSRF to ensure the request was coming from an authorised
+origin.
+
